@@ -25,6 +25,8 @@
 # 08/11/17, MC: included plotting code and updated averaging method
 #               identified bug in instantaneous code but have not
 #               corrected it.
+# 15/01/18, MC: changed input data format to include variables in
+#               ACCUMULATED and INSTANTANEOUS fields separately.
 #---------------------------------------------------------------
 import sys
 import os
@@ -32,7 +34,7 @@ from subroutines import *
 from plotting import *
 
 figpath = '/home/users/mchristensen/Desktop/ERC/'
-figpath = '/group_workspaces/cems/cloud_ecv/public/temp_transfer/erc/'
+#figpath = '/group_workspaces/cems/cloud_ecv/public/temp_transfer/erc/'
 
 #Compute Fluxes based on monthly, seasonal, and annual
 
@@ -41,13 +43,16 @@ months = [1,2,3,4,5,6,7,8,9,10,11,12]
 for tY in range(len(years)):
     year=years[tY]
     #Fetch File
-    ecmwfFile ='/group_workspaces/cems2/nceo_generic/model_data/ERA_INTERIM/ERA_INTERIM_ENERGETICS_monthly_'+str(year).zfill(4)+'.nc'
+    #ecmwfFile ='/group_workspaces/cems2/nceo_generic/model_data/ERA_INTERIM/ERA_INTERIM_ENERGETICS_monthly_'+str(year).zfill(4)+'.nc'
+    ecmwfAccumFile = '/group_workspaces/cems2/nceo_generic/model_data/ERA_INTERIM/ERA_INTERIM_ENERGETICS_ACCUM_'+str(year).zfill(4)+'.nc'
+    ecmwfInstFile  = '/group_workspaces/cems2/nceo_generic/model_data/ERA_INTERIM/ERA_INTERIM_ENERGETICS_INST_'+str(year).zfill(4)+'.nc'
+    ecmwfFiles = [ecmwfAccumFile,ecmwfInstFile]
     data_month = []
     for tM in range(len(months)):
         month=months[tM]
         dom=15
-        print('Processing: ',str(months[tM]).zfill(2))
-        flux_month = process_ecmwf_variables(year,month,dom,ecmwfFile)['daily']
+        print('Processing: ',str(months[tM]).zfill(2),dom)
+        flux_month = process_ecmwf_variables(year,month,dom,ecmwfFiles)['daily']
         data_month.append(flux_month)
         
 varNames = np.array([x['name'] for x in data_month[0]])
