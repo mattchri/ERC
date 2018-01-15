@@ -7,6 +7,7 @@
 #The second group deals with collocation.
 #
 # 02/11/17, MC: upload initial version of the code to the repo
+# 15/01/18, MC: updated code to accept Accumulation and Instantaneous types
 #-----------------------------------------------------------------
 from jdcal import *
 import sys
@@ -87,8 +88,23 @@ def extract_time_ecmwf(fname):
 #dom day of the month [int]
 #Output
 #ARR [accumulated field]
+#
+#Two types of files
+#Accumulated: indxType=0, Instantaneous: indxType=1
 #-----------------------------------------------------------------
-def read_ecmwf_variable(vname,year,month,dom,inputfile):
+def read_ecmwf_variable(vname,year,month,dom,ecmwffile):
+
+    #print(vname)
+
+    #Fetch ECWMF file based on variable name
+    varNames = np.array(['TTR','STRD','TISR','TSR','SSRD','SSR','STR','TP','SSHF','p82.162','p83.162','p85.162'])
+    varTypeIndx  = np.array([  0  ,  0   ,  0   ,  0  ,  0   ,  0   ,  0  , 0  ,  0   ,   1     ,   1     ,    1])
+    indxType = (varTypeIndx[np.where( vname == varNames )])[0]
+    inputfile = ecmwffile[indxType]
+
+    #print(ecmwffile)
+    #print('index = ',indxType)
+    #print('inputfile = ',inputfile)
 
     #Read Downloaded ECWMF Data
     if(len(inputfile) > 1):
@@ -126,21 +142,16 @@ def read_ecmwf_variable(vname,year,month,dom,inputfile):
             ARR[i,:,:] = (ncfile.variables[vname][:])[0,0,:,:]
 
 
-    #if(vname == 'p83.162'):
-    #    pdb.set_trace()
-
-    #if(vname == 'TISR'):
-    #    pdb.set_trace()
-
-    if(ma.is_masked(((ARR[:,0,0]))[0]) == False):
-        print('Instantaneous: '+vname)
-        tmpARR = ARR[ [0,4],:,:]
-        print(tmpARR[:,120,240])
+    #if(ma.is_masked(((ARR[:,0,0]))[0]) == False):
+    if(indxType == 1):
+        #print('Instantaneous: '+vname)
+        #pdb.set_trace()
+        tmpARR = ARR[:,:,:]
         aARR = instantaneous_ecmwf_3hr(tmpARR)
-        print(aARR[:,120,240])
 
-    if(ma.is_masked(((ARR[:,0,0]))[0]) == True):
-        print('Accumulated: '+vname)
+    #if(ma.is_masked(((ARR[:,0,0]))[0]) == True):
+    if(indxType == 0):
+        #print('Accumulated: '+vname)
         tmpARR = ARR[:,:,:]
         aARR = accumulate_ecmwf_3hr(tmpARR)
 
@@ -159,32 +170,33 @@ def accumulate_ecmwf_3hr(ARR):
     #Express quantity as instantaneous
     sz=ARR.shape
     tstep    = 3. * 3600. #3 hours converted to seconds
-    aARR     = np.empty( [sz[0],sz[1],sz[2]] )
+    aARR     = np.empty( [9,sz[1],sz[2]] )
     aARR[0,:,:] = ( ARR[0,:,:]-0.        ) / tstep
-    aARR[1,:,:] = ( ARR[1,:,:]-ARR[2,:,:]) / tstep
-    aARR[2,:,:] = ( ARR[2,:,:]-ARR[3,:,:]) / tstep
-    aARR[3,:,:] = ( ARR[3,:,:]-ARR[4,:,:]) / tstep
+    aARR[1,:,:] = ( ARR[1,:,:]-ARR[0,:,:]) / tstep
+    aARR[2,:,:] = ( ARR[2,:,:]-ARR[1,:,:]) / tstep
+    aARR[3,:,:] = ( ARR[3,:,:]-ARR[2,:,:]) / tstep
     aARR[4,:,:] = ( ARR[4,:,:]-0.        ) / tstep
-    aARR[5,:,:] = ( ARR[5,:,:]-ARR[5,:,:]) / tstep
-    aARR[6,:,:] = ( ARR[6,:,:]-ARR[6,:,:]) / tstep
-    aARR[7,:,:] = ( ARR[7,:,:]-ARR[7,:,:]) / tstep
-    aARR[:,:,:] = (ARR[4,:,:]+ARR[8,:,:]) / (tstep*8.)
+    aARR[5,:,:] = ( ARR[5,:,:]-ARR[4,:,:]) / tstep
+    aARR[6,:,:] = ( ARR[6,:,:]-ARR[5,:,:]) / tstep
+    aARR[7,:,:] = ( ARR[7,:,:]-ARR[6,:,:]) / tstep
+    aARR[8,:,:] = (ARR[3,:,:]+ARR[7,:,:]) / (tstep*8.)
     return aARR    
 
 def instantaneous_ecmwf_3hr(ARR):
     #Express quantity as instantaneous
     sz=ARR.shape
+    INTERP_times = 1.5+np.array([0,3,6,9,12,15,18,21])
+    ARR_times = np.array([3,9,15,21])
     aARR     = np.empty( [9,sz[1],sz[2]] )
-    aARR[0,:,:] = ARR[0,:,:]
+    aARR[0,:,:] = ARR[0,:,:] #np.interp(INTERP_times[0],ARR_times,ARR)
     aARR[1,:,:] = ARR[0,:,:]
-    aARR[2,:,:] = ARR[0,:,:]
-    aARR[3,:,:] = ARR[0,:,:]
-    aARR[4,:,:] = ARR[1,:,:]
-    aARR[5,:,:] = ARR[1,:,:]
-    aARR[6,:,:] = ARR[1,:,:]
-    aARR[7,:,:] = ARR[1,:,:]
-    aARR[8,:,:] = ARR[1,:,:]
-    aARR[:,:,:] = np.mean(ARR,axis=0)
+    aARR[2,:,:] = ARR[1,:,:]
+    aARR[3,:,:] = ARR[1,:,:]
+    aARR[4,:,:] = ARR[2,:,:] 
+    aARR[5,:,:] = ARR[2,:,:] 
+    aARR[6,:,:] = ARR[3,:,:] 
+    aARR[7,:,:] = ARR[3,:,:] 
+    aARR[8,:,:] = np.mean(ARR,axis=0)
     return aARR    
 
 
@@ -213,9 +225,6 @@ def process_ecmwf_variables(year,month,dom,inputfile):
         DIV_DRY_STATIC_ENERGY_data  = (p82['data']+p83['data']+p85['data']   )
         DIV_DRY_STATIC_ENERGY_daily = (p82['daily']+p83['daily']+p85['daily'])
         #pdb.set_trace()
-        ISHF = read_ecmwf_variable('ishf',year,month,dom,inputfile)
-        ISHF_data = ISHF['data'] * 3. * 3600.
-        ISHF_daily = ISHF['daily'] * 3. * 3600.
 
     # Calculate Fluxes
     L = 2.5e6 #latent heat of vaporization at 0C (J/kg)
@@ -228,7 +237,6 @@ def process_ecmwf_variables(year,month,dom,inputfile):
     toa_swup = TISR['data'] - TSR['data']
     prate    = TP['data'] * 1000. * 3600. #(m/s * 3600. * 1000mm/m --> mm/hr)
     SH     = 0. - SSHF['data']  #not sure if this is right!!!!!
-    #SH     = 0. - ISHF_data
     LP       = L * prate *(1/3600.) #(J/kg * mm/hr * 1kg/m2 * 1hr/3600s --> W/m2)
     Rtoa = toa_swdn - toa_swup + 0.       - toa_lwup
     Rs   = boa_swdn - boa_swup + boa_lwdn - boa_lwup
@@ -247,17 +255,16 @@ def process_ecmwf_variables(year,month,dom,inputfile):
                           {'data':toa_swup, 'name':'toa_swup','long':'top of atmosphere upwelling shortwave radiative flux'},
                           {'data':SH, 'name':'SH','long':'accumulated surface sensible heat flux'},
                           {'data':prate, 'name':'prate','long':'accumulated total precipitation rate'},
-                          {'data':LP, 'name':'LP','long':'bottom of atmosphere downwelling longwave radiative flux'},
-                          {'data':Rtoa, 'name':'Rtoa','long':'bottom of atmosphere downwelling longwave radiative flux'},
-                          {'data':Rs, 'name':'Rs','long':'bottom of atmosphere downwelling longwave radiative flux'},
-                          {'data':Ra, 'name':'Ra','long':'bottom of atmosphere downwelling longwave radiative flux'},
-                          {'data':dFa, 'name':'dFa','long':'bottom of atmosphere downwelling longwave radiative flux'},
-                          {'data':H  , 'name':'H','long':'bottom of atmosphere downwelling longwave radiative flux'},
+                          {'data':LP, 'name':'LP','long':'diabatic heating by precipitation'},
+                          {'data':Rtoa, 'name':'Rtoa','long':'net top of atmopshere radiation flux'},
+                          {'data':Rs, 'name':'Rs','long':'net surface radiation flux'},
+                          {'data':Ra, 'name':'Ra','long':'net atmospheric column radiation flux'},
+                          {'data':dFa, 'name':'dFa','long':'residual constrained dry static energy flux'},
+                          {'data':H  , 'name':'H','long':'dry static energy computed from vertical integral of the column dry static energy'},
                           {'data':Ea , 'name':'Ea','long':'time rate of change of the energy content of an atmospheric column of unit horizontal area extending from the surface to the top of the atmosphere'}]
 
 
 
-#might need to reverse the order of STR & STRD and SSR & SSRD!!!!
     boa_lwdn = STRD['daily']
     boa_lwup = STRD['daily'] - STR['daily']
     boa_swdn = SSRD['daily']
@@ -267,7 +274,6 @@ def process_ecmwf_variables(year,month,dom,inputfile):
     toa_swup = TISR['daily'] - TSR['daily']
     prate    = TP['daily'] * 1000. * 3600. #(m/s * 3600. * 1000mm/m --> mm/hr)
     SH     = 0. - SSHF['daily']
-    #SH     = 0. - ISHF_daily
     LP       = L * prate *(1/3600.) #(J/kg * mm/hr * 1kg/m2 * 1hr/3600s --> W/m2)
     Rtoa = toa_swdn - toa_swup + 0.       - toa_lwup
     Rs   = boa_swdn - boa_swup + boa_lwdn - boa_lwup
@@ -286,15 +292,13 @@ def process_ecmwf_variables(year,month,dom,inputfile):
                           {'data':toa_swup, 'name':'toa_swup','long':'top of atmosphere upwelling shortwave radiative flux'},
                           {'data':SH, 'name':'SH','long':'accumulated surface sensible heat flux'},
                           {'data':prate, 'name':'prate','long':'accumulated total precipitation rate'},
-                          {'data':LP, 'name':'LP','long':'bottom of atmosphere downwelling longwave radiative flux'},
-                          {'data':Rtoa, 'name':'Rtoa','long':'bottom of atmosphere downwelling longwave radiative flux'},
-                          {'data':Rs, 'name':'Rs','long':'bottom of atmosphere downwelling longwave radiative flux'},
-                          {'data':Ra, 'name':'Ra','long':'bottom of atmosphere downwelling longwave radiative flux'},
-                          {'data':dFa, 'name':'dFa','long':'bottom of atmosphere downwelling longwave radiative flux'},
-                          {'data':H  , 'name':'H','long':'bottom of atmosphere downwelling longwave radiative flux'},
+                          {'data':LP, 'name':'LP','long':'diabatic heating by precipitation'},
+                          {'data':Rtoa, 'name':'Rtoa','long':'net top of atmopshere radiation flux'},
+                          {'data':Rs, 'name':'Rs','long':'net surface radiation flux'},
+                          {'data':Ra, 'name':'Ra','long':'net atmospheric column radiation flux'},
+                          {'data':dFa, 'name':'dFa','long':'residual constrained dry static energy flux'},
+                          {'data':H  , 'name':'H','long':'dry static energy computed from vertical integral of the column dry static energy'},
                           {'data':Ea , 'name':'Ea','long':'time rate of change of the energy content of an atmospheric column of unit horizontal area extending from the surface to the top of the atmosphere'}]
 
     ecmwf_flux = {'hourly':ecmwf_flux_hourly,'daily':ecmwf_flux_daily}
     return ecmwf_flux
-
-
